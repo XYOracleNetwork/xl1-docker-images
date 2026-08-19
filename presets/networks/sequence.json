@@ -1,0 +1,32 @@
+{
+  "chain": {
+    "id": "dd381FBB392C85160d8B0453E446757b12384046"
+  },
+  "connections": {
+    "default-rpc": {
+      "type": "rpc",
+      "protocol": "http",
+      "url": "https://beta.api.chain.xyo.network/rpc"
+    },
+    "default-evm-rpc": {
+      "type": "evm-rpc",
+      "url": "https://ethereum-sepolia-rpc.publicnode.com",
+      "chainId": "0xaa36a7"
+    },
+    "rest-finalized": {
+      "type": "rest",
+      "baseUrl": "https://blocks.sequence.xyo.space"
+    },
+    "rest-chain-state": {
+      "type": "rest",
+      "baseUrl": "https://state.sequence.xyo.space"
+    },
+    "rest-index": {
+      "type": "rest",
+      "baseUrl": "https://indexes.sequence.xyo.space"
+    },
+    "memory": {
+      "type": "memory"
+    }
+  }
+}

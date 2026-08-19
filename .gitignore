@@ -1,0 +1,23 @@
+node_modules
+dist
+build
+bin
+bundles
+.DS_Store
+*.log
+.rollup.cache
+.tsconfig*
+
+.idea
+.eslintcache
+.xy/cache
+
+# Local env / secrets (examples/env/*.env.example stay tracked)
+.env
+.env.*
+*.env
+!*.env.example
+
+# Ignore files related to Claude (for now)
+CLAUDE.local.md
+.claude/*.local.*

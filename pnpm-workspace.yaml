@@ -1,0 +1,11 @@
+verifyDepsBeforeRun: warn
+
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
+
+minimumReleaseAge: 1440
+
+minimumReleaseAgeExclude:
+  - '@ariestools/*'
+  - '@xyo-network/*'

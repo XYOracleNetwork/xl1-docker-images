@@ -1,0 +1,15 @@
+# Build context is the repository root.
+# Keep dist/node (entrypoint) and presets/ — required by docker/Dockerfile.
+**/.git
+**/.github
+**/node_modules
+**/build
+**/src
+**/*.spec.ts
+**/coverage
+**/.DS_Store
+**/*.md
+!README.md
+compose
+examples
+scripts

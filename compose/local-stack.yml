@@ -1,0 +1,135 @@
+# Multi-container local XL1 stack (one process per role).
+# Copy and fill env files under examples/env/ before starting.
+#
+# Usage (from this package directory):
+#   export XL1_IMAGE=xl1:local
+#   # set XL1_MNEMONIC (and chain/EVM/connection vars) in each env file or a shared .env
+#   docker compose -f compose/local-stack.yml --profile core up -d
+#
+# Profiles:
+#   core     — api + producer + finalizer
+#   full     — core + mempool + indexer + validator
+#   bridge   — bridge (+ redis)
+#
+# Observability (Prometheus/Grafana/OTel) is not included here — run your own OTel stack.
+
+name: xl1-local-stack
+
+x-node-common: &node-common
+  image: ${XL1_IMAGE:-ghcr.io/xyoraclenetwork/xl1:latest}
+  pull_policy: ${XL1_PULL_POLICY:-missing}
+  restart: unless-stopped
+  environment:
+    XL1_HEALTH_CHECK_PORT: "9099"
+    XL1_CONNECTIONS__LOCAL_STORE__TYPE: lmdb
+    XL1_CONNECTIONS__LOCAL_STORE__ROOT: /data/.store
+  networks:
+    - xl1
+
+services:
+  api:
+    <<: *node-common
+    profiles: ["core", "full"]
+    env_file:
+      - ${XL1_API_ENV:-../examples/env/api.env.example}
+    command: ["start", "api"]
+    volumes:
+      - api_data:/data
+    ports:
+      - "${XL1_API_PORT:-8080}:8080"
+      - "${XL1_API_HEALTH_PORT:-9099}:9099"
+
+  producer:
+    <<: *node-common
+    profiles: ["core", "full"]
+    env_file:
+      - ${XL1_PRODUCER_ENV:-../examples/env/producer.env.example}
+    command: ["start", "producer"]
+    volumes:
+      - producer_data:/data
+    ports:
+      - "${XL1_PRODUCER_PORT:-8081}:8081"
+      - "${XL1_PRODUCER_HEALTH_PORT:-9101}:9099"
+
+  finalizer:
+    <<: *node-common
+    profiles: ["core", "full"]
+    env_file:
+      - ${XL1_FINALIZER_ENV:-../examples/env/finalizer.env.example}
+    command: ["start", "finalizer"]
+    volumes:
+      - finalizer_data:/data
+    ports:
+      - "${XL1_FINALIZER_HEALTH_PORT:-9102}:9099"
+
+  mempool:
+    <<: *node-common
+    profiles: ["full"]
+    env_file:
+      - ${XL1_MEMPOOL_ENV:-../examples/env/mempool.env.example}
+    command: ["start", "mempool"]
+    volumes:
+      - mempool_data:/data
+    ports:
+      - "${XL1_MEMPOOL_PORT:-8084}:8084"
+      - "${XL1_MEMPOOL_HEALTH_PORT:-9103}:9099"
+
+  indexer:
+    <<: *node-common
+    profiles: ["full"]
+    env_file:
+      - ${XL1_INDEXER_ENV:-../examples/env/indexer.env.example}
+    command: ["start", "indexer"]
+    volumes:
+      - indexer_data:/data
+    ports:
+      - "${XL1_INDEXER_HEALTH_PORT:-9104}:9099"
+
+  validator:
+    <<: *node-common
+    profiles: ["full"]
+    env_file:
+      - ${XL1_VALIDATOR_ENV:-../examples/env/validator.env.example}
+    command: ["start", "validator"]
+    volumes:
+      - validator_data:/data
+    ports:
+      - "${XL1_VALIDATOR_HEALTH_PORT:-9105}:9099"
+
+  bridge:
+    <<: *node-common
+    profiles: ["bridge"]
+    env_file:
+      - ${XL1_BRIDGE_ENV:-../examples/env/bridge.env.example}
+    command: ["start", "bridge"]
+    depends_on:
+      - redis
+    volumes:
+      - bridge_data:/data
+    ports:
+      - "${XL1_BRIDGE_HEALTH_PORT:-9106}:9099"
+
+  redis:
+    profiles: ["bridge"]
+    image: redis:alpine
+    restart: unless-stopped
+    networks:
+      - xl1
+    ports:
+      - "${XL1_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+
+networks:
+  xl1:
+    driver: bridge
+
+volumes:
+  api_data:
+  producer_data:
+  finalizer_data:
+  mempool_data:
+  indexer_data:
+  validator_data:
+  bridge_data:
+  redis_data:

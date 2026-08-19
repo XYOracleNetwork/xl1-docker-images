@@ -1,0 +1,46 @@
+# Generic single-role XL1 node.
+#
+# Usage (from this package directory):
+#   export XL1_IMAGE=xl1:local
+#   docker compose -f compose/node.yml --env-file examples/env/api.env.example \
+#     run --service-ports --rm node start api
+#
+# Or override command / env file per role:
+#   docker compose -f compose/node.yml run --rm -e XL1_ACTORS__0__NAME=producer node start producer
+
+name: xl1-node
+
+services:
+  node:
+    image: ${XL1_IMAGE:-ghcr.io/xyoraclenetwork/xl1:latest}
+    pull_policy: ${XL1_PULL_POLICY:-missing}
+    restart: unless-stopped
+    env_file:
+      - ${XL1_ENV_FILE:-../examples/env/api.env.example}
+    environment:
+      XL1_HEALTH_CHECK_PORT: ${XL1_HEALTH_CHECK_PORT:-9099}
+      # LMDB / local store under the data volume
+      XL1_CONNECTIONS__LOCAL_STORE__TYPE: ${XL1_CONNECTIONS__LOCAL_STORE__TYPE:-lmdb}
+      XL1_CONNECTIONS__LOCAL_STORE__ROOT: ${XL1_CONNECTIONS__LOCAL_STORE__ROOT:-/data/.store}
+    volumes:
+      - xl1_data:/data
+    ports:
+      - "${XL1_HOST_PORT:-8080}:${XL1_CONTAINER_PORT:-8080}"
+      - "${XL1_HEALTH_HOST_PORT:-9099}:${XL1_HEALTH_CHECK_PORT:-9099}"
+    # Default: api. Override: XL1_START_ACTORS="producer" or compose run ... start producer
+    command: ["start", "${XL1_START_ACTORS:-api}"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-fsS",
+          "http://127.0.0.1:${XL1_HEALTH_CHECK_PORT:-9099}/livez",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  xl1_data:

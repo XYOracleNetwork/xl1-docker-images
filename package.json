@@ -1,0 +1,109 @@
+{
+  "name": "@xyo-network/xl1-docker-images",
+  "version": "5.1.0",
+  "description": "Docker images, Compose recipes, and config examples for running XL1 network nodes",
+  "keywords": [
+    "xyo",
+    "xl1",
+    "docker",
+    "container",
+    "blockchain"
+  ],
+  "homepage": "https://xyo.network",
+  "bugs": {
+    "url": "https://github.com/XYOracleNetwork/xl1-docker-images/issues",
+    "email": "support@xylabs.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XYOracleNetwork/xl1-docker-images.git"
+  },
+  "license": "LGPL-3.0-only",
+  "author": {
+    "name": "XY Labs Development Team",
+    "email": "support@xylabs.com",
+    "url": "https://xylabs.com"
+  },
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/node/index.d.ts",
+      "default": "./dist/node/index.mjs"
+    },
+    "./entrypoint": {
+      "types": "./dist/node/entrypoint.d.ts",
+      "default": "./dist/node/entrypoint.mjs"
+    },
+    "./roles": {
+      "types": "./dist/node/roles.d.ts",
+      "default": "./dist/node/roles.mjs"
+    },
+    "./presets": {
+      "types": "./dist/node/presets/index.d.ts",
+      "default": "./dist/node/presets/index.mjs"
+    },
+    "./presets/buildPresetConfig": {
+      "types": "./dist/node/presets/buildPresetConfig.d.ts",
+      "default": "./dist/node/presets/buildPresetConfig.mjs"
+    },
+    "./presets/deepMerge": {
+      "types": "./dist/node/presets/deepMerge.d.ts",
+      "default": "./dist/node/presets/deepMerge.mjs"
+    },
+    "./presets/loadPresetFiles": {
+      "types": "./dist/node/presets/loadPresetFiles.d.ts",
+      "default": "./dist/node/presets/loadPresetFiles.mjs"
+    },
+    "./presets/types": {
+      "types": "./dist/node/presets/types.d.ts",
+      "default": "./dist/node/presets/types.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "docker",
+    "compose",
+    "examples",
+    "presets",
+    "scripts",
+    "README.md",
+    "LICENSE",
+    "!**/*.bench.*",
+    "!**/*.spec.*",
+    "!**/*.test.*"
+  ],
+  "scripts": {
+    "build": "xy build",
+    "build-image": "./scripts/build-image.sh",
+    "compile": "xy compile",
+    "entrypoint": "node ./dist/node/entrypoint.mjs",
+    "fix": "xy fix",
+    "lint": "xy lint",
+    "smoke-run": "./scripts/smoke-run.sh",
+    "test": "xy test"
+  },
+  "devDependencies": {
+    "@ariestools/eslint-config-flat": "~9.0.4",
+    "@ariestools/toolchain": "~9.0.3",
+    "@ariestools/tsconfig": "~9.0.3",
+    "@types/node": "~26.2.0",
+    "eslint": "~10.8.1",
+    "eslint-import-resolver-typescript": "~4.4.5",
+    "typescript": "~6.0.3",
+    "vite": "~8.2.1",
+    "vitest": "~4.1.10"
+  },
+  "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1",
+  "engines": {
+    "node": ">=24"
+  },
+  "engineStrict": true,
+  "volta": {
+    "node": "24.14.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
