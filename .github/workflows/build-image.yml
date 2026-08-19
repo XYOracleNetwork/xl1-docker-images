@@ -1,0 +1,97 @@
+# Build the XL1 multi-role Docker image for a specific xl1-cli version
+# and push it to GHCR, tagged with that version.
+#
+# Run manually from the Actions tab ("Run workflow") or:
+#   gh workflow run build-image.yml -f version=5.0.3
+#
+# Also callable from other workflows (see build-latest.yml, which is the
+# only place the :latest tag comes from).
+
+name: build-image
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'xl1-cli version to bake in (XL1_CLI_VERSION build arg)'
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      tag-latest:
+        description: 'Also move the :latest tag to this build'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/xyoraclenetwork/xl1-docker-images
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate version and compute tags
+        id: tags
+        env:
+          VERSION: ${{ inputs.version }}
+          TAG_LATEST: ${{ inputs.tag-latest }}
+        run: |
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "::error::'${VERSION}' is not a valid semver version" >&2
+            exit 1
+          fi
+          RESOLVED="$(npm view "@xyo-network/xl1-cli@${VERSION}" version 2>/dev/null || true)"
+          if [[ "${RESOLVED}" != "${VERSION}" ]]; then
+            echo "::error::@xyo-network/xl1-cli@${VERSION} not found on npm" >&2
+            exit 1
+          fi
+          TAGS="${IMAGE}:${VERSION}"
+          if [[ "${TAG_LATEST}" == "true" ]]; then
+            TAGS+=$'\n'"${IMAGE}:latest"
+          fi
+          {
+            echo 'tags<<EOF'
+            echo "${TAGS}"
+            echo 'EOF'
+          } >> "${GITHUB_OUTPUT}"
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.1
+          cache: pnpm
+
+      - name: Compile entrypoint
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm xy compile
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          build-args: |
+            XL1_CLI_VERSION=${{ inputs.version }}
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

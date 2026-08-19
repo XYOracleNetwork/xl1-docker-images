@@ -1,0 +1,45 @@
+# Build the image for whatever npm currently publishes as the `latest`
+# dist-tag of @xyo-network/xl1-cli, and move :latest to it.
+#
+# This is the ONLY workflow that pushes the :latest tag, so :latest always
+# means "the image wrapping npm's current latest xl1-cli" — never just
+# "whatever someone built most recently". No inputs: run it and it tracks npm.
+#
+# On-demand for now; uncomment the schedule to make it nightly. Rebuilding
+# on a schedule (even when the version hasn't changed) also refreshes
+# base-image security patches.
+
+name: build-latest
+
+on:
+  # schedule:
+  #   - cron: '23 8 * * *' # 08:23 UTC daily (~00:23 PT)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.npm.outputs.version }}
+    steps:
+      - name: Resolve npm latest dist-tag
+        id: npm
+        run: |
+          VERSION="$(npm view @xyo-network/xl1-cli dist-tags.latest)"
+          if [[ -z "${VERSION}" ]]; then
+            echo "::error::could not resolve latest dist-tag of @xyo-network/xl1-cli" >&2
+            exit 1
+          fi
+          echo "npm latest is ${VERSION}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    needs: resolve
+    uses: ./.github/workflows/build-image.yml
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      tag-latest: true
