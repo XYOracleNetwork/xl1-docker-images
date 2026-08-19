@@ -8,8 +8,10 @@ A **single-package** repository publishing `@xyo-network/xl1-docker-images` — 
 for XYO Layer One nodes: one multi-role Docker image, network×role JSON presets, Compose recipes, env
 examples, and the TypeScript entrypoint/preset helpers.
 
-It was split out of the private `xyo-chain` monorepo so it can be public. It has **no dependency on that
-monorepo**: the image installs the published `@xyo-network/xl1-cli` from npm at build time.
+It was split out of the private `xyo-chain` monorepo so it *can* be made public later. **This GitHub
+repository is private for now** and stays private until an intentional release — do not change its
+visibility. It has **no dependency on that monorepo**: the image installs the published
+`@xyo-network/xl1-cli` from npm at build time.
 
 ## Toolchain
 
@@ -54,5 +56,6 @@ from barrel `index.ts` files. Conventional commits (`feat:`, `fix:`, `chore:`, `
 
 ## Versioning
 
-The package is published to npm as **public**. Version currently tracks where it left the monorepo (5.1.0);
+The npm package `@xyo-network/xl1-docker-images` is already public at 5.1.0 (published from the monorepo),
+so any publish from here must bump past it. Version currently tracks where it left the monorepo;
 it now versions independently. Do not hand-edit the version field — `xy deploy*` manages bumps.
