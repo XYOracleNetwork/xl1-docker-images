@@ -35,6 +35,10 @@
       "types": "./dist/node/entrypoint.d.ts",
       "default": "./dist/node/entrypoint.mjs"
     },
+    "./childEnv": {
+      "types": "./dist/node/childEnv.d.ts",
+      "default": "./dist/node/childEnv.mjs"
+    },
     "./roles": {
       "types": "./dist/node/roles.d.ts",
       "default": "./dist/node/roles.mjs"

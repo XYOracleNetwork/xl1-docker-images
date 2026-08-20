@@ -42,8 +42,7 @@ RUN npm install -g "@xyo-network/xl1-cli@${XL1_CLI_VERSION}" \
 COPY presets /opt/xl1/presets
 COPY dist/node /opt/xl1/lib
 
-ENV XL1_DATA_DIR=/data \
-  XL1_HEALTH_CHECK_PORT=9099 \
+ENV XL1_HEALTH_CHECK_PORT=9099 \
   XL1_PRESETS_DIR=/opt/xl1/presets \
   NODE_ENV=production
 

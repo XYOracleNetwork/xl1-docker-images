@@ -9,8 +9,7 @@
     "TimeSyncViewer": { "connection": "default-rpc" },
     "ChainContractViewer": { "connection": "default-evm-rpc" },
     "BlockRunner": { "connection": "memory" },
-    "BlockValidationViewer": { "connection": "memory" },
-    "BlockRewardViewer": { "connection": "memory" }
+    "BlockValidationViewer": { "connection": "memory" }
   },
   "actors": [
     {

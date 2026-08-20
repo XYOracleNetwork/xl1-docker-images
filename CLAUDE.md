@@ -47,6 +47,27 @@ than using `@ariestools/vitest-config`, whose default include glob assumes a mon
 
 Preserve both modes. Adding a role means adding `presets/roles/<role>.json` plus an entry in `src/roles.ts`.
 
+### The `XL1_` env namespace is shared with the CLI
+
+`xl1` maps **every** `XL1_*` variable into its config document (`XL1_FOO__BAR` → `foo.bar`) and rejects
+unrecognized root keys. So any operator-facing variable this entrypoint invents (`XL1_NETWORK`,
+`XL1_ROLE`, `XL1_REWARD_ADDRESS`, `XL1_PRESETS_DIR`, …) collides with that namespace and kills the CLI
+before any actor starts — in preset *and* passthrough mode. `src/childEnv.ts` strips them from the child
+environment; **add every new entrypoint-owned variable to `XL1_ENTRYPOINT_ENV_NAMES`**, and never set one
+in the Dockerfile `ENV` without doing so.
+
+Valid CLI keys, by contrast, must use the CLI's own spelling: `XL1_LOG__LOG_LEVEL` (not `XL1_LOG_LEVEL`),
+`XL1_CONNECTIONS__DEFAULT_EVM_RPC__CHAIN_ID` (there is no `evm` config root). `chain.id` is parsed with
+`/^[0-9a-f]+$/` — bare lowercase hex, no `0x`, no checksum casing. `providerBindings` cannot be set from
+env at all: monikers camelCase to `blockRunner`, which does not match `BlockRunner`.
+
+### Provider bindings
+
+A role preset's `providerBindings` must match what the installed CLI actually offers. Providers declare
+`connectionTypes`; binding a connection to a provider that declares `["none"]` fails with
+`MissingCapabilityError`. `BlockRewardViewer` (SimpleBlockRewardViewer) is connectionless — leave it
+unbound and let the closure resolve it.
+
 ## Style
 
 ESM only; no semicolons, single quotes, 2-space indent, trailing commas. `const` over `let`; `interface`
