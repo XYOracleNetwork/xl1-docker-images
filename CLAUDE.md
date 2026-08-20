@@ -61,6 +61,26 @@ Valid CLI keys, by contrast, must use the CLI's own spelling: `XL1_LOG__LOG_LEVE
 `/^[0-9a-f]+$/` — bare lowercase hex, no `0x`, no checksum casing. `providerBindings` cannot be set from
 env at all: monikers camelCase to `blockRunner`, which does not match `BlockRunner`.
 
+### Known upstream defect: INSECURE GENESIS REWARD WALLET WARNING
+
+Every run prints this, federated producers included. It is **not** cosmetic — the node really is
+fabricating a genesis block, into its ephemeral memory archivist. Two independent defects in
+`xyo-chain` (confirmed present in xl1-cli 5.0.2 **and** 5.1.1) cause it:
+
+1. `shouldSkipLocalNodeBoot()` is documented as "true when the process config declares no store
+   connection (rpc-only / federated)", but `connectionProfiles()` unconditionally injects a `memory`
+   profile and `storeConnectionName()` accepts `memory` as a bindable store — so it returns `false`
+   for *every* config, including one with no connections at all. Nothing else in the repo ever passes
+   `skipLocalNode` explicitly, so the federated path is unreachable and there is no operator-side
+   workaround.
+2. `initFinalizationArchivistIfNeeded()` bootstraps a genesis whenever the local archivist is empty
+   (`if (!possibleHead)`), ignoring `config.chain.id` — despite its own comment reading "if there is
+   no configured chain ID and no head, create a new chain".
+
+Setting `chain.genesisRewardAddress` would silence the warning but still fabricate the block, and no
+published value exists for sequence/mainnet (upstream uses it only in test setups) — so do not invent
+one. Leave it until upstream is fixed.
+
 ### Provider bindings
 
 A role preset's `providerBindings` must match what the installed CLI actually offers. Providers declare
