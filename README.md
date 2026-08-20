@@ -54,6 +54,10 @@ docker run --rm --env-file sequence-producer.env xl1:local
 
 When **`XL1_NETWORK` and `XL1_ROLE` are unset**, the entrypoint passes through to `xl1` (full CLI / env config).
 
+> Producing blocks additionally requires the producer's address to be on the network's allowed producer
+> list. An unlisted node still runs healthy and submits candidates — they are simply never accepted, and
+> `Published block: …` in the log means "candidate submitted", not accepted.
+
 ## Image
 
 | | |
@@ -90,7 +94,7 @@ docker run --rm --env-file sequence-producer.env xl1:local
 Pin a specific CLI release:
 
 ```bash
-XL1_CLI_VERSION=5.0.2 TAG=xl1:5.0.2 ./scripts/build-image.sh
+XL1_CLI_VERSION=5.2.0 TAG=xl1:5.2.0 ./scripts/build-image.sh
 ```
 
 ## Manual (non-preset) config

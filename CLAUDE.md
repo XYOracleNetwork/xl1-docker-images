@@ -61,25 +61,50 @@ Valid CLI keys, by contrast, must use the CLI's own spelling: `XL1_LOG__LOG_LEVE
 `/^[0-9a-f]+$/` — bare lowercase hex, no `0x`, no checksum casing. `providerBindings` cannot be set from
 env at all: monikers camelCase to `blockRunner`, which does not match `BlockRunner`.
 
-### Known upstream defect: INSECURE GENESIS REWARD WALLET WARNING
+### `chain.id` is the live chain id, not the staking contract address
 
-Every run prints this, federated producers included. It is **not** cosmetic — the node really is
-fabricating a genesis block, into its ephemeral memory archivist. Two independent defects in
-`xyo-chain` (confirmed present in xl1-cli 5.0.2 **and** 5.1.1) cause it:
+A network preset's `chain.id` must be the **current chain id of the running chain**, bare lowercase hex
+(the CLI parses it with `/^[0-9a-f]+$/`). Read it from a running network:
 
-1. `shouldSkipLocalNodeBoot()` is documented as "true when the process config declares no store
-   connection (rpc-only / federated)", but `connectionProfiles()` unconditionally injects a `memory`
-   profile and `storeConnectionName()` accepts `memory` as a bindable store — so it returns `false`
-   for *every* config, including one with no connections at all. Nothing else in the repo ever passes
-   `skipLocalNode` explicitly, so the federated path is unreachable and there is no operator-side
-   workaround.
-2. `initFinalizationArchivistIfNeeded()` bootstraps a genesis whenever the local archivist is empty
-   (`if (!possibleHead)`), ignoring `config.chain.id` — despite its own comment reading "if there is
-   no configured chain ID and no head, create a new chain".
+```ts
+const gw = await new GatewayBuilder().name('probe')
+  .rpcUrl(`${net.url}/rpc`).dataLakeEndpoint(NetworkDataLakeUrls[net.id]).build()
+await gw.connection.viewer.block.chainId()   // sequence: 4b43a753c8024c0e5000e8ac948ac0063ac624bc
+```
 
-Setting `chain.genesisRewardAddress` would silence the warning but still fabricate the block, and no
-published value exists for sequence/mainnet (upstream uses it only in test setups) — so do not invent
-one. Leave it until upstream is fixed.
+Despite the CLI's own config description ("Should be the staking contract address for contract-backed
+chains") and upstream's `.example.env`, the Sepolia staking contract address
+`dd381fbb392c85160d8b0453e446757b12384046` is **not** sequence's chain id — a chain keeps its ledger but
+takes a new id when it forks. A wrong value makes every produced block fail validation with
+`BlockValidationError: Invalid chain id`. Re-verify after any announced fork; a pinned preset value is
+perishable.
+
+On xl1-cli ≤ 5.1.1 this failed **silently**: the node fabricated an in-memory genesis stamped with the
+configured (wrong) id, then validated its own blocks against that fake chain and reported
+`Published block: …` for blocks the network would reject. Requires 5.2.0+ to fail loudly.
+
+### Producing on sequence requires an allowlisted address
+
+Correct config is necessary but not sufficient. The network only accepts blocks from producers on its
+allowed list, so a correctly configured node with an unlisted address runs healthy, tracks the head,
+builds candidates, submits them — and never lands one. Verified with a throwaway wallet: candidates at
+562214/562215/562218/562220 were all superseded by other creators, the reward address balance stayed
+`0n`, and every block in 562210–562240 came from one of three allowlisted addresses.
+
+`Published block: …` in the producer log means "candidate submitted to the mempool", **not** accepted.
+Acceptance is only provable from the chain: compare `viewer.block.blockByNumber(n)[0]._hash` against the
+hash the producer logged, or watch the reward address balance.
+
+### Requires xl1-cli 5.2.0+
+
+Earlier releases print `INSECURE GENESIS REWARD WALLET WARNING` on every run, federated producers
+included, and it is not cosmetic — the node really does fabricate a genesis block into its ephemeral
+memory archivist. `shouldSkipLocalNodeBoot()` was documented as "true when the process config declares
+no store connection (rpc-only / federated)", but `connectionProfiles()` injects a `memory` profile and
+`storeConnectionName()` accepted `memory` as a bindable store, so it returned `false` for every config
+and the federated path was unreachable. 5.2.0 routes it through `localChainStoreConnectionName()`, which
+reads `config.connections` directly and counts only persistent (lmdb/mongo) stores. Do not downgrade the
+`XL1_CLI_VERSION` default below 5.2.0.
 
 ### Provider bindings
 

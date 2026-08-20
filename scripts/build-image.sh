@@ -6,7 +6,7 @@
 #
 # Usage:
 #   ./scripts/build-image.sh
-#   XL1_CLI_VERSION=5.0.2 ./scripts/build-image.sh
+#   XL1_CLI_VERSION=5.2.0 ./scripts/build-image.sh
 #   TAG=xl1:dev ./scripts/build-image.sh
 #   PLATFORM=linux/amd64 ./scripts/build-image.sh
 
@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 TAG="${TAG:-xl1:local}"
-XL1_CLI_VERSION="${XL1_CLI_VERSION:-5.0.2}"
+XL1_CLI_VERSION="${XL1_CLI_VERSION:-5.2.0}"
 NODE_VERSION="${NODE_VERSION:-24.14.1}"
 PLATFORM="${PLATFORM:-}"
 
