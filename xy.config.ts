@@ -8,6 +8,7 @@ const config: XyConfig = {
         entry: [
           'index.ts',
           'entrypoint.ts',
+          'childEnv.ts',
           'roles.ts',
           'presets/index.ts',
           'presets/buildPresetConfig.ts',

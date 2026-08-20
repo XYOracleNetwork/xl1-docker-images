@@ -47,6 +47,72 @@ than using `@ariestools/vitest-config`, whose default include glob assumes a mon
 
 Preserve both modes. Adding a role means adding `presets/roles/<role>.json` plus an entry in `src/roles.ts`.
 
+### The `XL1_` env namespace is shared with the CLI
+
+`xl1` maps **every** `XL1_*` variable into its config document (`XL1_FOO__BAR` → `foo.bar`) and rejects
+unrecognized root keys. So any operator-facing variable this entrypoint invents (`XL1_NETWORK`,
+`XL1_ROLE`, `XL1_REWARD_ADDRESS`, `XL1_PRESETS_DIR`, …) collides with that namespace and kills the CLI
+before any actor starts — in preset *and* passthrough mode. `src/childEnv.ts` strips them from the child
+environment; **add every new entrypoint-owned variable to `XL1_ENTRYPOINT_ENV_NAMES`**, and never set one
+in the Dockerfile `ENV` without doing so.
+
+Valid CLI keys, by contrast, must use the CLI's own spelling: `XL1_LOG__LOG_LEVEL` (not `XL1_LOG_LEVEL`),
+`XL1_CONNECTIONS__DEFAULT_EVM_RPC__CHAIN_ID` (there is no `evm` config root). `chain.id` is parsed with
+`/^[0-9a-f]+$/` — bare lowercase hex, no `0x`, no checksum casing. `providerBindings` cannot be set from
+env at all: monikers camelCase to `blockRunner`, which does not match `BlockRunner`.
+
+### `chain.id` is the live chain id, not the staking contract address
+
+A network preset's `chain.id` must be the **current chain id of the running chain**, bare lowercase hex
+(the CLI parses it with `/^[0-9a-f]+$/`). Read it from a running network:
+
+```ts
+const gw = await new GatewayBuilder().name('probe')
+  .rpcUrl(`${net.url}/rpc`).dataLakeEndpoint(NetworkDataLakeUrls[net.id]).build()
+await gw.connection.viewer.block.chainId()   // sequence: 4b43a753c8024c0e5000e8ac948ac0063ac624bc
+```
+
+Despite the CLI's own config description ("Should be the staking contract address for contract-backed
+chains") and upstream's `.example.env`, the Sepolia staking contract address
+`dd381fbb392c85160d8b0453e446757b12384046` is **not** sequence's chain id — a chain keeps its ledger but
+takes a new id when it forks. A wrong value makes every produced block fail validation with
+`BlockValidationError: Invalid chain id`. Re-verify after any announced fork; a pinned preset value is
+perishable.
+
+On xl1-cli ≤ 5.1.1 this failed **silently**: the node fabricated an in-memory genesis stamped with the
+configured (wrong) id, then validated its own blocks against that fake chain and reported
+`Published block: …` for blocks the network would reject. Requires 5.2.0+ to fail loudly.
+
+### Producing on sequence requires an allowlisted address
+
+Correct config is necessary but not sufficient. The network only accepts blocks from producers on its
+allowed list, so a correctly configured node with an unlisted address runs healthy, tracks the head,
+builds candidates, submits them — and never lands one. Verified with a throwaway wallet: candidates at
+562214/562215/562218/562220 were all superseded by other creators, the reward address balance stayed
+`0n`, and every block in 562210–562240 came from one of three allowlisted addresses.
+
+`Published block: …` in the producer log means "candidate submitted to the mempool", **not** accepted.
+Acceptance is only provable from the chain: compare `viewer.block.blockByNumber(n)[0]._hash` against the
+hash the producer logged, or watch the reward address balance.
+
+### Requires xl1-cli 5.2.0+
+
+Earlier releases print `INSECURE GENESIS REWARD WALLET WARNING` on every run, federated producers
+included, and it is not cosmetic — the node really does fabricate a genesis block into its ephemeral
+memory archivist. `shouldSkipLocalNodeBoot()` was documented as "true when the process config declares
+no store connection (rpc-only / federated)", but `connectionProfiles()` injects a `memory` profile and
+`storeConnectionName()` accepted `memory` as a bindable store, so it returned `false` for every config
+and the federated path was unreachable. 5.2.0 routes it through `localChainStoreConnectionName()`, which
+reads `config.connections` directly and counts only persistent (lmdb/mongo) stores. Do not downgrade the
+`XL1_CLI_VERSION` default below 5.2.0.
+
+### Provider bindings
+
+A role preset's `providerBindings` must match what the installed CLI actually offers. Providers declare
+`connectionTypes`; binding a connection to a provider that declares `["none"]` fails with
+`MissingCapabilityError`. `BlockRewardViewer` (SimpleBlockRewardViewer) is connectionless — leave it
+unbound and let the closure resolve it.
+
 ## Style
 
 ESM only; no semicolons, single quotes, 2-space indent, trailing commas. `const` over `let`; `interface`

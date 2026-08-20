@@ -15,7 +15,7 @@
 #
 # Build (from the repository root; compile first if dist/ is missing):
 #   pnpm xy compile
-#   docker build -f docker/Dockerfile --build-arg XL1_CLI_VERSION=5.0.2 -t xl1:local .
+#   docker build -f docker/Dockerfile --build-arg XL1_CLI_VERSION=5.2.0 -t xl1:local .
 #
 # Or just: ./scripts/build-image.sh
 
@@ -23,7 +23,7 @@ ARG NODE_VERSION=24.14.1
 
 FROM node:${NODE_VERSION}-bookworm-slim
 
-ARG XL1_CLI_VERSION=5.0.2
+ARG XL1_CLI_VERSION=5.2.0
 
 LABEL org.opencontainers.image.title="XL1 Node" \
   org.opencontainers.image.description="Multi-role XYO Layer One node with network/role presets" \
@@ -42,8 +42,7 @@ RUN npm install -g "@xyo-network/xl1-cli@${XL1_CLI_VERSION}" \
 COPY presets /opt/xl1/presets
 COPY dist/node /opt/xl1/lib
 
-ENV XL1_DATA_DIR=/data \
-  XL1_HEALTH_CHECK_PORT=9099 \
+ENV XL1_HEALTH_CHECK_PORT=9099 \
   XL1_PRESETS_DIR=/opt/xl1/presets \
   NODE_ENV=production
 

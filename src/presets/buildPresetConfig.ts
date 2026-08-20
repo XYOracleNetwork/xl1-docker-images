@@ -72,7 +72,9 @@ function applyChainId(config: Record<string, unknown>, chainIdRaw: string | unde
   }
   if (isPlainObject(config.chain) && typeof config.chain.id === 'string' && config.chain.id.length === 0) {
     throw new Error(
-      'Network preset has no chain.id — set XL1_CHAIN__ID (staking contract address)',
+      'Network preset has no chain.id — set XL1_CHAIN__ID. Read the live value with '
+      + 'gateway.connection.viewer.block.chainId(); it is not the staking contract address '
+      + 'and it changes when the chain forks.',
     )
   }
 }

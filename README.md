@@ -54,6 +54,10 @@ docker run --rm --env-file sequence-producer.env xl1:local
 
 When **`XL1_NETWORK` and `XL1_ROLE` are unset**, the entrypoint passes through to `xl1` (full CLI / env config).
 
+> Producing blocks additionally requires the producer's address to be on the network's allowed producer
+> list. An unlisted node still runs healthy and submits candidates — they are simply never accepted, and
+> `Published block: …` in the log means "candidate submitted", not accepted.
+
 ## Image
 
 | | |
@@ -90,7 +94,7 @@ docker run --rm --env-file sequence-producer.env xl1:local
 Pin a specific CLI release:
 
 ```bash
-XL1_CLI_VERSION=5.0.2 TAG=xl1:5.0.2 ./scripts/build-image.sh
+XL1_CLI_VERSION=5.2.0 TAG=xl1:5.2.0 ./scripts/build-image.sh
 ```
 
 ## Manual (non-preset) config
@@ -105,11 +109,25 @@ docker run --rm --env-file examples/env/api.env.example \
 
 A federated producer **does not need** `local-store` (LMDB): it submits via JsonRpc mempool and keeps `BlockRunner` on `memory`. Authority roles (finalizer, co-located API) still need a real store — use full env/config, not the producer preset.
 
+> **Manual mode cannot join a public network.** `providerBindings` has no environment representation
+> (`XL1_PROVIDER_BINDINGS__BLOCK_VIEWER__…` camel-cases the moniker to `blockViewer`, matching no
+> provider), so an env-only producer binds every viewer to its local store and extends a chain of its
+> own — even with `XL1_CHAIN__ID` and a public `default-rpc` set. Use preset mode, or a mounted config
+> file. The env examples under `examples/env/` are local-stack shapes.
+
 ## Compose
 
 ```bash
 export XL1_IMAGE=xl1:local
+
+# passthrough: full manual config
 docker compose -f compose/node.yml up
+
+# preset: federated Sequence producer
+XL1_PRESET_ENV_FILE=../sequence-producer.env \
+  docker compose -f compose/node.yml --profile preset up -d preset
+
+# self-contained local chain (api + producer + finalizer)
 docker compose -f compose/local-stack.yml --profile core up -d
 ```
 

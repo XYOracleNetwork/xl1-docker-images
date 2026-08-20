@@ -94,3 +94,35 @@ describe('buildPresetConfig (sequence producer)', () => {
     })).toThrow(/chain\.id/)
   })
 })
+
+describe('preset shapes the xl1 CLI accepts', () => {
+  // The CLI parses chain.id with HexZod (/^[0-9a-f]+$/) — checksummed or
+  // 0x-prefixed values are rejected before any actor starts.
+  it.each(['sequence', 'mainnet'] as const)('%s chain.id is bare lowercase hex', (network) => {
+    const preset = loadNetworkPreset(network, presetsDir)
+    const id = (preset.chain as { id: string }).id
+    expect(id).toMatch(/^[0-9a-f]*$/)
+  })
+
+  it('builds a sequence chain.id the CLI hex check accepts', () => {
+    const built = buildPresetConfig({
+      network: 'sequence',
+      role: 'producer',
+      networkPreset: loadNetworkPreset('sequence', presetsDir),
+      rolePreset: loadRolePreset('producer', presetsDir),
+      secrets: {
+        mnemonic: 'test test test test test test test test test test test junk',
+        rewardAddress: '0x1111111111111111111111111111111111111111',
+      },
+    })
+    expect((built.document.xl1.chain as { id: string }).id).toMatch(/^[0-9a-f]+$/)
+  })
+
+  // SimpleBlockRewardViewer declares connectionTypes ["none"], so any
+  // `connection` on this binding makes provider resolution fail.
+  it('leaves BlockRewardViewer unbound in the producer role preset', () => {
+    const preset = loadRolePreset('producer', presetsDir)
+    const bindings = preset.providerBindings as Record<string, unknown>
+    expect(bindings.BlockRewardViewer).toBeUndefined()
+  })
+})

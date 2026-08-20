@@ -24,6 +24,7 @@ import FS from 'node:fs'
 import PATH from 'node:path'
 import PROCESS from 'node:process'
 
+import { childEnv } from './childEnv.ts'
 import {
   buildPresetConfig,
   defaultPresetsDir,
@@ -130,7 +131,7 @@ function fail(message: string): never {
 function execXl1(args: readonly string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn('xl1', [...args], {
-      env: PROCESS.env,
+      env: childEnv(PROCESS.env),
       stdio: 'inherit',
     })
     child.on('error', (err) => {
@@ -150,7 +151,7 @@ function tryMonorepoFallback(
     return false
   }
   const nodeChild = spawn(PROCESS.execPath, [MONOREPO_CLI, ...args], {
-    env: PROCESS.env,
+    env: childEnv(PROCESS.env),
     stdio: 'inherit',
   })
   nodeChild.on('error', reject)
