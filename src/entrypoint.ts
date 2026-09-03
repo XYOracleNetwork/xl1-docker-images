@@ -7,9 +7,9 @@
  *
  * Operator surface (preset mode):
  *   XL1_NETWORK=sequence|mainnet
- *   XL1_ROLE=producer
+ *   XL1_ROLE=producer|producer-rest
  *   XL1_MNEMONIC=…
- *   XL1_REWARD_ADDRESS=…          (producer)
+ *   XL1_REWARD_ADDRESS=…          (producer roles)
  * Optional:
  *   XL1_CHAIN__ID / XL1_CHAIN_ID
  *   XL1_RPC_URL

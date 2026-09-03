@@ -23,14 +23,16 @@ The image is built entirely from **published npm artifacts** — no XL1 monorepo
 
 ## Operator surface (preset mode)
 
-For a **federated producer** (JsonRpc mempool + memory `BlockRunner`, no local-store):
+For a **federated producer** (JsonRpc mempool + memory `BlockRunner`, no local-store).
+`XL1_ROLE=producer` reads the chain over the public API RPC; `producer-rest` reads
+finalized chain data from the REST CDNs instead.
 
 | Variable | Required | Notes |
 |---|---|---|
 | `XL1_NETWORK` | yes | `sequence` or `mainnet` |
-| `XL1_ROLE` | yes | `producer` (more roles later) |
+| `XL1_ROLE` | yes | `producer` or `producer-rest` |
 | `XL1_MNEMONIC` | yes | Root wallet phrase |
-| `XL1_REWARD_ADDRESS` | producer | Block reward recipient |
+| `XL1_REWARD_ADDRESS` | producer roles | Block reward recipient |
 | `XL1_CHAIN__ID` | mainnet* | Staking contract address (*sequence has a default) |
 | `XL1_RPC_URL` | no | Override public API RPC |
 | `XL1_EVM_RPC_URL` | no | Override public EVM RPC |
@@ -44,10 +46,22 @@ docker run --rm \
   xl1:local
 ```
 
+REST chain reads (same actor, CDN viewers):
+
+```bash
+docker run --rm \
+  -e XL1_NETWORK=sequence \
+  -e XL1_ROLE=producer-rest \
+  -e XL1_MNEMONIC='…' \
+  -e XL1_REWARD_ADDRESS=0x… \
+  xl1:local
+```
+
 Or:
 
 ```bash
 cp examples/env/sequence-producer.env.example sequence-producer.env
+# or sequence-producer-rest.env.example
 # edit mnemonic + reward address
 docker run --rm --env-file sequence-producer.env xl1:local
 ```
@@ -73,7 +87,8 @@ Presets live under `presets/`:
 presets/
   networks/sequence.json   # public RPC, EVM, REST CDN URLs
   networks/mainnet.json
-  roles/producer.json      # federated producer bindings (rpc + memory BlockRunner)
+  roles/producer.json       # federated producer (rpc chain reads + rpc mempool + memory BlockRunner)
+  roles/producer-rest.json  # same actor, REST CDN chain reads + rpc mempool
 ```
 
 ## Quick start (local build)
@@ -94,7 +109,7 @@ docker run --rm --env-file sequence-producer.env xl1:local
 Pin a specific CLI release:
 
 ```bash
-XL1_CLI_VERSION=5.2.2 TAG=xl1:5.2.2 ./scripts/build-image.sh
+XL1_CLI_VERSION=5.3.2 TAG=xl1:5.3.2 ./scripts/build-image.sh
 ```
 
 ## Manual (non-preset) config
@@ -107,7 +122,7 @@ docker run --rm --env-file examples/env/api.env.example \
   xl1:local start api
 ```
 
-A federated producer **does not need** `local-store` (LMDB): it submits via JsonRpc mempool and keeps `BlockRunner` on `memory`. Authority roles (finalizer, co-located API) still need a real store — use full env/config, not the producer preset.
+A federated producer **does not need** `local-store` (LMDB): it submits via JsonRpc mempool and keeps `BlockRunner` on `memory`. `producer` federates chain reads over `default-rpc`; `producer-rest` binds `BlockViewer` / `FinalizationViewer` / `IndexViewer` to the public REST CDNs instead. Authority roles (finalizer, co-located API) still need a real store — use full env/config, not a producer preset.
 
 > **Manual mode cannot join a public network.** `providerBindings` has no environment representation
 > (`XL1_PROVIDER_BINDINGS__BLOCK_VIEWER__…` camel-cases the moniker to `blockViewer`, matching no
@@ -166,7 +181,7 @@ pnpm xy fix        # autofix lint
 ## Roadmap
 
 - [x] Package scaffold + multi-role Dockerfile
-- [x] Network/role presets + entrypoint (`sequence`/`mainnet` × `producer`)
+- [x] Network/role presets + entrypoint (`sequence`/`mainnet` × `producer` / `producer-rest`)
 - [x] Standalone public repository
 - [ ] More role presets (validator, etc.) where federated shapes exist
 - [ ] Publish mainnet `chain.id` into the network preset when stable

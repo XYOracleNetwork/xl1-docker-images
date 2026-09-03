@@ -45,7 +45,9 @@ than using `@ariestools/vitest-config`, whose default include glob assumes a mon
   `xl1 -c <generated> start <actors…>`.
 - With either unset → passes argv straight through to `xl1` (full CLI/env control).
 
-Preserve both modes. Adding a role means adding `presets/roles/<role>.json` plus an entry in `src/roles.ts`.
+Preserve both modes. Adding a role means adding `presets/roles/<role>.json` plus an
+entry in `XL1_PRESET_ROLES` (`src/presets/types.ts`). `src/roles.ts` is the actor
+catalog (`xl1 start <name>`), not the preset-role list.
 
 ### The `XL1_` env namespace is shared with the CLI
 
@@ -111,7 +113,22 @@ reads `config.connections` directly and counts only persistent (lmdb/mongo) stor
 A role preset's `providerBindings` must match what the installed CLI actually offers. Providers declare
 `connectionTypes`; binding a connection to a provider that declares `["none"]` fails with
 `MissingCapabilityError`. `BlockRewardViewer` (SimpleBlockRewardViewer) is connectionless — leave it
-unbound and let the closure resolve it.
+unbound in every producer preset.
+
+Two federated producer presets ship:
+
+- `producer` — chain viewers on `default-rpc` (JsonRpc). `AccountBalanceViewer` and
+  `TimeSyncViewer` are bound to rpc.
+- `producer-rest` — chain reads from REST (`BlockViewer → rest-finalized`,
+  `ChainStateViewer` / `FinalizationViewer → rest-chain-state`, `IndexViewer → rest-index`).
+  Mempool submit/view stay on `default-rpc` (no REST mempool). `AccountBalanceViewer` and
+  `TimeSyncViewer` stay unbound so the Simple implementations derive from REST `BlockViewer`
+  / `EvmChainViewer`. `BlockViewer` is not auto-bound to REST — the role preset must set it
+  explicitly. `RestBlockViewer` requires `ChainStateViewer` and `IndexViewer`. Bind
+  `EvmChainViewer` and `StakeTotalsViewer` to `default-evm-rpc`; the 5.3 resolver will not
+  auto-bind connection-typed providers.
+
+The image pin is xl1-cli 5.3.2.
 
 ## Style
 

@@ -5,7 +5,7 @@
 # Preset mode (recommended for federated producer):
 #   docker run --rm \
 #     -e XL1_NETWORK=sequence \
-#     -e XL1_ROLE=producer \
+#     -e XL1_ROLE=producer \          # or producer-rest
 #     -e XL1_MNEMONIC='…' \
 #     -e XL1_REWARD_ADDRESS=0x… \
 #     xl1:local
@@ -15,7 +15,7 @@
 #
 # Build (from the repository root; compile first if dist/ is missing):
 #   pnpm xy compile
-#   docker build -f docker/Dockerfile --build-arg XL1_CLI_VERSION=5.2.2 -t xl1:local .
+#   docker build -f docker/Dockerfile --build-arg XL1_CLI_VERSION=5.3.2 -t xl1:local .
 #
 # Or just: ./scripts/build-image.sh
 
@@ -23,7 +23,7 @@ ARG NODE_VERSION=24.14.1
 
 FROM node:${NODE_VERSION}-bookworm-slim
 
-ARG XL1_CLI_VERSION=5.2.2
+ARG XL1_CLI_VERSION=5.3.2
 
 LABEL org.opencontainers.image.title="XL1 Node" \
   org.opencontainers.image.description="Multi-role XYO Layer One node with network/role presets" \

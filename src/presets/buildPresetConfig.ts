@@ -1,8 +1,9 @@
 import { deepMerge } from './deepMerge.ts'
-import type {
-  BuildPresetConfigInput,
-  Xl1PresetRole,
-  Xl1PresetSecrets,
+import {
+  isProducerPresetRole,
+  type BuildPresetConfigInput,
+  type Xl1PresetRole,
+  type Xl1PresetSecrets,
 } from './types.ts'
 
 export interface BuiltPresetConfig {
@@ -15,7 +16,7 @@ export interface BuiltPresetConfig {
 /**
  * Merge network + role presets with operator secrets into an xl1 config document.
  *
- * Required operator inputs for producer: mnemonic + rewardAddress.
+ * Required operator inputs for producer roles: mnemonic + rewardAddress.
  * Optional: chainId, rpcUrl, evmRpcUrl.
  */
 export function buildPresetConfig(input: BuildPresetConfigInput): BuiltPresetConfig {
@@ -49,7 +50,7 @@ function applySecrets(
     isPlainObject(config.connections) ? { ...config.connections } : {},
     secrets,
   )
-  if (role === 'producer') {
+  if (isProducerPresetRole(role)) {
     applyProducerRewardAddress(config, secrets.rewardAddress)
   }
 }

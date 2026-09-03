@@ -7,6 +7,7 @@ export {
 } from './loadPresetFiles.ts'
 export {
   type BuildPresetConfigInput,
+  isProducerPresetRole,
   XL1_PRESET_NETWORKS,
   XL1_PRESET_ROLE_ACTORS,
   XL1_PRESET_ROLES,
