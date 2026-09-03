@@ -33,7 +33,7 @@ export const XL1_PRESET_ROLES = ['producer', 'producer-rest'] as const
 
 /** Actor names started for each role preset. */
 export const XL1_PRESET_ROLE_ACTORS: Readonly<Record<Xl1PresetRole, readonly string[]>> = {
-  producer: ['producer'],
+  'producer': ['producer'],
   'producer-rest': ['producer'],
 }
 

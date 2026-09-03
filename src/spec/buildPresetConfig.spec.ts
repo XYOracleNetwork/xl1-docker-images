@@ -32,7 +32,7 @@ describe('buildPresetConfig (sequence producer)', () => {
     expect(built.document.xl1.mnemonic).toBe('test test test test test test test test test test test junk')
 
     const xl1 = built.document.xl1
-    const connections = xl1.connections as Record<string, { type?: string; url?: string; baseUrl?: string }>
+    const connections = xl1.connections as Record<string, { baseUrl?: string; type?: string; url?: string }>
     expect(connections['default-rpc']?.url).toContain('beta.api.chain.xyo.network')
     expect(connections['default-evm-rpc']?.type).toBe('evm-rpc')
     expect(connections['rest-finalized']?.baseUrl).toBe('https://blocks.sequence.xyo.space')
