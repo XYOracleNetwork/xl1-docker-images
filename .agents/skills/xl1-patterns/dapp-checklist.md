@@ -56,12 +56,12 @@ Layer 1 always applies. Walk this layer (Layer 2) when the project is a dApp. Wa
 ## SDK-First
 
 - [ ] Payloads are built with `PayloadBuilder` — not raw object literals (`{ schema: '...', field: val }`)
-- [ ] Hashing uses `PayloadBuilder.dataHash()` — not `crypto.subtle.digest` on `JSON.stringify` (produces non-canonical hashes)
+- [ ] New application identity, references, commitments, cache keys, and deduplication use `PayloadBuilder.hash()`; each `dataHash` use cites an explicit protocol requirement. Never use a native digest of `JSON.stringify` as a substitute
 - [ ] BoundWitnesses are built with `BoundWitnessBuilder` — field arrays are never constructed manually
 - [ ] Datalake access uses `RestDataLakeRunner` / `RestDataLakeViewer` — not raw `fetch()` to the endpoint
 - [ ] New types follow the Zod-first pattern: Zod schema is source of truth, TS type derived via `z.infer`, guards via `zodIsFactory` / `zodAsFactory` / `zodToFactory`
 - [ ] Payloads read from the chain or datalake are filtered through Zod-factory guards (`isXxxPayload`) before being honored — `payload.schema === '...'` is a tag check, not a validator. `isPayloadOfSchemaType` is not a substitute
-- [ ] Schemas are created with `asSchema('com.your-org.app.entity', true)` — not bare string literals
+- [ ] Schemas are created with `asSchema('com.example.app.entity', true)` — not bare string literals
 
 **Source:** [Protocol Best Practices](../xyo-knowledge/best-practices.md), [Development on XL1](../xl1-knowledge/development.md)
 
@@ -70,11 +70,16 @@ Layer 1 always applies. Walk this layer (Layer 2) when the project is a dApp. Wa
 ## Payload & Schema Design
 
 - [ ] Application fields do not use `_*` or `$*` prefixes — these are reserved for storage infrastructure and client metadata
-- [ ] Schema names use reverse domain, dot-separated, lowercase: `com.<your-org>.<app>.<entity>` — `network.xyo.*` is reserved for XYO Foundation (see [Schema Naming](../xyo-knowledge/best-practices.md#schema-naming))
+- [ ] Schema names use nonempty ASCII `[a-z0-9]` segments separated by single dots, within a namespace the author controls. No hyphens, Unicode, empty segments, or silent domain normalization; `network.xyo.*` is reserved
+- [ ] New schema names have no structural `.v1` / `.1` suffix. Preserve historical identifiers unless an explicit migration calls for changes
+- [ ] `$version` uses SDK radix-1,000 helpers; omitted means `1.0.0` without injection. Typed guards check supported version and shape with no downgrade fallback
+- [ ] Published definitions are immutable; open/closed policy, nested closure, metadata handling, and stable field meanings are explicit. Compatibility tests cover both reader directions and stored history
+- [ ] Original hashes and version support are checked before projections; `$version` is never stripped then treated as omitted. Unbound version metadata cannot weaken authorization/signature/consensus rules
+- [ ] Validator caches use `(schema, effectiveVersion)`; payload-validation caches include root hash plus applicable policy, not data hash alone
 - [ ] Each payload type represents one concept — game state, move, and result are separate schemas, not one combined payload
 - [ ] Related payloads are referenced by hash (`$sources`), not embedded inside other payloads
 
-**Source:** [Protocol Best Practices — Payload Design](../xyo-knowledge/best-practices.md), [Protocol Primitives](../xyo-knowledge/primitives.md)
+**Source:** [Payload Schema Evolution and Identity](../xyo-knowledge/payload-schema-evolution.md), [Protocol Best Practices — Payload Design](../xyo-knowledge/best-practices.md), [Protocol Primitives](../xyo-knowledge/primitives.md)
 
 ---
 
@@ -129,8 +134,22 @@ Layer 1 always applies. Walk this layer (Layer 2) when the project is a dApp. Wa
 - [ ] `confirmSubmittedTransaction` calls pass explicit options for non-local networks (e.g., `{ attempts: 30, delay: 10_000 }` for Sequence) — defaults time out before finalization
 - [ ] Seed phrase loads from `.env` via `dotenv/config`; never logged, committed, or echoed to console
 - [ ] Script defaults to a non-mainnet network (e.g., `XL1_NETWORK=sequence`) — explicit override required to point at mainnet
+- [ ] **(if local vitest chain)** Prefer `@xyo-network/dapp-kit-vitest-config` `local-xl1` for public/dapp-kit consumers; use XYO-internal `apiLocal` only when restricted packages are available — see [dApp Kit Vitest](../xl1-testing/local-chain-dapp-kit-vitest.md)
 
 **Source:** [Headless Testnet Verification](../xl1-testing/headless-testnet-verification.md) (in the `xl1-testing` skill)
+
+---
+
+## dApp Kit (if using `@xyo-network/dapp-kit*` / `xl1.dapp.json`)
+
+- [ ] `xl1-dapp validate` (and `plan` for the deployment under test) succeeds
+- [ ] Clients use **application ports** / documented status — not a one-off shadow REST schema as the protocol
+- [ ] Effect journal / crash recovery expectations are met or explicitly out of scope with reason
+- [ ] If event-driven: wake ≠ durable event ≠ subscription cursor ([Events and wakes](../xl1-dapp-kit/events-and-wakes.md))
+- [ ] Evidence label is stated (**local** / packed / Sequence / …); local green is not hosted or production qualification ([Conformance](../xl1-dapp-kit/conformance.md))
+- [ ] Local chain automation uses [dapp-kit vitest `local-xl1`](../xl1-testing/local-chain-dapp-kit-vitest.md) when specs need a vitest-owned chain
+
+**Source:** [XL1 dApp Kit](../xl1-dapp-kit/SKILL.md), [Full local dApp stack — dapp-kit](../xl1-testing/local-dapp-stack.md#dapp-kit)
 
 ---
 
@@ -153,7 +172,7 @@ Layer 1 always applies. Walk this layer (Layer 2) when the project is a dApp. Wa
 - [ ] `reveal.nbf >= commit.exp` — the reveal window does not open until the commit window has closed
 - [ ] No client-side processing buffer is added to deadline checks (matches `TransactionDurationValidator` semantics)
 - [ ] Salts are persisted locally (e.g., `StorageArchivist` with `type: 'local'`) for retrieval during the reveal phase
-- [ ] Commit-reveal verification uses `PayloadBuilder.dataHash` — not a custom hash function
+- [ ] New application commit-reveal verification uses `PayloadBuilder.hash` over the agreed exact preimage; deployed commitment algorithms change only under an explicit migration
 - [ ] Commits `$sources` to the market/session terms; reveals `$sources` to their commit — building a traversable audit DAG
 
 **Source:** [Commit-Reveal Primitive](commit-reveal.md)
@@ -167,7 +186,7 @@ Layer 1 always applies. Walk this layer (Layer 2) when the project is a dApp. Wa
 - [ ] Winners/recipients are *derived* from the settlement BW + verified reveals — not stored inline on the outcome payload
 - [ ] Any cached results view (e.g., `MarketResultsViewPayload`) is clearly marked non-authoritative; `$sources` to the settlement payload it derives from
 - [ ] Settlement gate re-runs the entry gate before signing — never trusts caller-supplied verified state
-- [ ] Settlement gate re-verifies every reveal hash against its commit (`PayloadBuilder.dataHash`) before bundling it into the settlement BW
+- [ ] Settlement gate re-verifies every reveal against its committed exact preimage (`PayloadBuilder.hash` for new application contracts) before bundling it into the settlement BW
 
 **Source:** [Commit-Reveal Prediction Markets — Validation Gates](commit-reveal-prediction-markets.md#validation-gates), [Atomic Exchange — Validation Gates](atomic-exchange.md#validation-gates)
 

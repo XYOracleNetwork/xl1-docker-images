@@ -44,6 +44,8 @@ Beyond scripts and config files, observe how the existing codebase does things:
 
 When in doubt, read existing code first and follow its lead.
 
+The same applies to documents. If the repo has an `AGENTS.md`, a `docs/` tree, or a `papers/` directory, follow their existing conventions for naming, front matter, and where a new document belongs. The [xy-agent skill](../xy-agent/SKILL.md) describes the house pattern for these and is recommended where a repo has adopted it.
+
 ### Credential Safety
 
 Never commit secrets or authentication tokens to the repository:

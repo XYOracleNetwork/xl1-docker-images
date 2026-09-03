@@ -10,7 +10,7 @@ bundles
 
 .idea
 .eslintcache
-.xy/cache
+**/.xy/cache/
 
 # Local env / secrets (examples/env/*.env.example stay tracked)
 .env
