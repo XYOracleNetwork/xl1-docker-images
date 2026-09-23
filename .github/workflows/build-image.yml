@@ -29,9 +29,19 @@
 #      tentative stance, not doctrine — see the commented-out `force` input
 #      for the shape the other answer would take.
 #
-#      If a tag ever does have to be rebuilt under the current design, delete
-#      that package version in GHCR first, so discarding the old artifact is
-#      a deliberate, auditable act.
+#      Note that the tag keys on the xl1-cli version alone, while the image
+#      has two independent inputs: that version, and this repo's presets and
+#      entrypoint. Roll-forward covers a CVE (a new CLI release carries the
+#      patch) but NOT a preset correction, which arrives without one. The
+#      known case is a sequence fork invalidating `chain.id` -- see the
+#      chain.id section of CLAUDE.md. Then a corrected image needs the SAME
+#      CLI version, and this workflow will decline to build it.
+#
+#      That is an accepted tradeoff, not an oversight. Recovery is deliberate
+#      and manual: delete that package version in GHCR, then re-run. Be aware
+#      it is a genuine break of the immutability promise -- operators pinned
+#      to the tag get different bits on their next pull -- so it warrants a
+#      release note, not a quiet rebuild.
 
 name: build-image
 
