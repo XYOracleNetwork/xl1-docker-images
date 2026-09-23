@@ -70,11 +70,15 @@ on:
       #   type: boolean
       #   default: false
 
-  # Nightly. Enable once the manual path has been exercised. Scheduled runs
-  # only ever fire on the default branch, and GitHub disables the schedule
-  # after 60 days with no repository activity.
-  # schedule:
-  #   - cron: '23 8 * * *' # 08:23 UTC daily (~00:23 PT)
+  # Nightly. Scheduled runs only ever fire on the default branch, and GitHub
+  # disables the schedule after 60 days with no repository activity.
+  #
+  # On a day when npm's latest is already published this is a no-op: the
+  # build is skipped and :latest is checked, not rewritten. On a day when a
+  # new xl1-cli ships, this ADOPTS it -- builds it and moves :latest onto it
+  # with no human in the loop.
+  schedule:
+    - cron: '23 8 * * *' # 08:23 UTC daily (~00:23 PT)
 
 permissions:
   contents: read
