@@ -4,8 +4,13 @@
 # Run manually from the Actions tab ("Run workflow") or:
 #   gh workflow run build-image.yml -f version=5.0.3
 #
-# Also callable from other workflows (see build-latest.yml, which is the
-# only place the :latest tag comes from).
+# Also callable from other workflows (see build-latest.yml).
+#
+# :latest is DERIVED, never passed in: this workflow re-resolves npm's latest
+# dist-tag and tags :latest if and only if the version being built is it. That
+# holds the invariant regardless of who started the build — a manual build of
+# the newest version claims :latest, and a backfill of an older version cannot
+# steal it.
 #
 # Version tags are immutable. npm forbids republishing a version, so
 # `<version>` fully determines image contents and there is never a reason to
@@ -32,11 +37,6 @@ on:
       version:
         required: true
         type: string
-      tag-latest:
-        description: 'Also move the :latest tag to this build'
-        required: false
-        type: boolean
-        default: false
       force:
         description: 'Rebuild and overwrite even if this version tag is already published'
         required: false
@@ -56,11 +56,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate version and compute tags
+      - name: Validate version and decide tags
         id: tags
         env:
           VERSION: ${{ inputs.version }}
-          TAG_LATEST: ${{ inputs.tag-latest }}
         run: |
           if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
             echo "::error::'${VERSION}' is not a valid semver version" >&2
@@ -71,10 +70,21 @@ jobs:
             echo "::error::@xyo-network/xl1-cli@${VERSION} not found on npm" >&2
             exit 1
           fi
-          TAGS="${IMAGE}:${VERSION}"
-          if [[ "${TAG_LATEST}" == "true" ]]; then
-            TAGS+=$'\n'"${IMAGE}:latest"
+          NPM_LATEST="$(npm view @xyo-network/xl1-cli dist-tags.latest 2>/dev/null || true)"
+          if [[ -z "${NPM_LATEST}" ]]; then
+            echo "::error::could not resolve the latest dist-tag of @xyo-network/xl1-cli" >&2
+            exit 1
           fi
+          TAGS="${IMAGE}:${VERSION}"
+          IS_LATEST=false
+          if [[ "${VERSION}" == "${NPM_LATEST}" ]]; then
+            IS_LATEST=true
+            TAGS+=$'\n'"${IMAGE}:latest"
+            echo "${VERSION} is npm's latest dist-tag -> will also tag :latest"
+          else
+            echo "${VERSION} is not npm's latest (${NPM_LATEST}) -> :latest untouched"
+          fi
+          echo "is-latest=${IS_LATEST}" >> "${GITHUB_OUTPUT}"
           {
             echo 'tags<<EOF'
             echo "${TAGS}"
@@ -105,16 +115,22 @@ jobs:
             echo "${IMAGE}:${VERSION} is not published yet"
           fi
 
-      # The version is already built, but :latest does not point at it — the
-      # case where a manual build of N is later picked up by build-latest.
-      # Repoint the tag at the existing digest; no rebuild, nothing pulled.
-      - name: Move :latest onto the published version
-        if: ${{ steps.published.outputs.exists == 'true' && !inputs.force && inputs.tag-latest }}
+      # The version is already built and it is npm's latest, so the build is
+      # skipped — but :latest still has to end up pointing at it. Repoint the
+      # tag at the existing digest: no rebuild, nothing pulled.
+      - name: Point :latest at the published version
+        if: ${{ steps.published.outputs.exists == 'true' && !inputs.force && steps.tags.outputs.is-latest == 'true' }}
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          docker buildx imagetools create --tag "${IMAGE}:latest" "${IMAGE}:${VERSION}"
-          echo "Moved ${IMAGE}:latest onto the existing ${IMAGE}:${VERSION} digest"
+          WANT="$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --format '{{.Manifest.Digest}}')"
+          HAVE="$(docker buildx imagetools inspect "${IMAGE}:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          if [[ "${WANT}" == "${HAVE}" ]]; then
+            echo ":latest already points at ${VERSION} (${WANT}) - nothing to do"
+          else
+            docker buildx imagetools create --tag "${IMAGE}:latest" "${IMAGE}:${VERSION}"
+            echo "Moved :latest from ${HAVE:-<unset>} to ${VERSION} (${WANT})"
+          fi
 
       - uses: pnpm/action-setup@v4
         if: ${{ steps.published.outputs.exists != 'true' || inputs.force }}
@@ -149,11 +165,11 @@ jobs:
           VERSION: ${{ inputs.version }}
           EXISTS: ${{ steps.published.outputs.exists }}
           FORCED: ${{ inputs.force }}
-          TAG_LATEST: ${{ inputs.tag-latest }}
+          IS_LATEST: ${{ steps.tags.outputs.is-latest }}
         run: |
           if [[ "${EXISTS}" == "true" && "${FORCED}" != "true" ]]; then
-            if [[ "${TAG_LATEST}" == "true" ]]; then
-              echo "Skipped build of ${VERSION} (already published); moved :latest onto it." >> "${GITHUB_STEP_SUMMARY}"
+            if [[ "${IS_LATEST}" == "true" ]]; then
+              echo "Skipped build of ${VERSION} (already published); :latest points at it." >> "${GITHUB_STEP_SUMMARY}"
             else
               echo "Skipped build of ${VERSION} (already published). Re-run with force to rebuild." >> "${GITHUB_STEP_SUMMARY}"
             fi
@@ -161,6 +177,6 @@ jobs:
             echo "Built and pushed:" >> "${GITHUB_STEP_SUMMARY}"
             echo '```' >> "${GITHUB_STEP_SUMMARY}"
             echo "${IMAGE}:${VERSION}" >> "${GITHUB_STEP_SUMMARY}"
-            [[ "${TAG_LATEST}" == "true" ]] && echo "${IMAGE}:latest" >> "${GITHUB_STEP_SUMMARY}"
+            [[ "${IS_LATEST}" == "true" ]] && echo "${IMAGE}:latest" >> "${GITHUB_STEP_SUMMARY}"
             echo '```' >> "${GITHUB_STEP_SUMMARY}"
           fi
