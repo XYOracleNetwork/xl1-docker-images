@@ -81,6 +81,11 @@ takes a new id when it forks. A wrong value makes every produced block fail vali
 `BlockValidationError: Invalid chain id`. Re-verify after any announced fork; a pinned preset value is
 perishable.
 
+Correcting it after a fork means republishing the image under the **same** `XL1_CLI_VERSION`, which the
+`build-image` workflow refuses: its tag keys on the CLI version alone, and a published version is never
+rebuilt. Recovery is deliberate — delete that package version in GHCR, then re-run the workflow. That
+does break the tag's immutability promise for anyone already pinned to it, so it warrants a release note.
+
 On xl1-cli ≤ 5.1.1 this failed **silently**: the node fabricated an in-memory genesis stamped with the
 configured (wrong) id, then validated its own blocks against that fake chain and reported
 `Published block: …` for blocks the network would reject. Requires 5.2.0+ to fail loudly.
