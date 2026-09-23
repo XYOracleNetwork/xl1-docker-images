@@ -5,9 +5,13 @@
 # means "the image wrapping npm's current latest xl1-cli" — never just
 # "whatever someone built most recently". No inputs: run it and it tracks npm.
 #
-# On-demand for now; uncomment the schedule to make it nightly. Rebuilding
-# on a schedule (even when the version hasn't changed) also refreshes
-# base-image security patches.
+# On-demand for now; uncomment the schedule to make it nightly. A nightly run
+# is a cheap no-op once npm's latest is already published: build-image skips
+# the build and only ensures :latest points at it.
+#
+# The tradeoff of that idempotency is that base-image security patches no
+# longer land under an existing version tag. Refreshing one is deliberate:
+#   gh workflow run build-image.yml -f version=<N> -f force=true
 
 name: build-latest
 
