@@ -1,22 +1,27 @@
-# Build the XL1 multi-role Docker image for a specific xl1-cli version
-# and push it to GHCR, tagged with that version.
+# Build the XL1 multi-role Docker image and push it to GHCR.
 #
-# Run manually from the Actions tab ("Run workflow") or:
-#   gh workflow run build-image.yml -f version=5.0.3
+# One workflow, two ways in:
 #
-# Also callable from other workflows (see build-latest.yml).
+#   Manual, a specific version:  gh workflow run build-image.yml -f version=5.3.2
+#   Manual, whatever npm tags latest:  gh workflow run build-image.yml
+#   Nightly (cron):              same as the second form — no inputs at all
 #
-# :latest is DERIVED, never passed in: this workflow re-resolves npm's latest
-# dist-tag and tags :latest if and only if the version being built is it. That
-# holds the invariant regardless of who started the build — a manual build of
-# the newest version claims :latest, and a backfill of an older version cannot
-# steal it.
+# Omitting `version` means "build npm's current latest dist-tag", so the
+# nightly run is just the no-argument manual run. Both paths go through the
+# same publish gate below; there is no second copy of that logic to drift.
 #
-# Version tags are immutable. npm forbids republishing a version, so
-# `<version>` fully determines image contents and there is never a reason to
-# build one twice: if `<image>:<version>` is already in GHCR the build is
-# skipped. Pass `force` to rebuild anyway (e.g. to pick up base-image
-# security patches under an existing tag).
+# Two invariants, enforced here rather than by the caller:
+#
+#   1. :latest tracks npm's latest dist-tag. This workflow re-resolves the
+#      dist-tag and tags :latest iff the version being built IS it — so a
+#      manual build of the newest version claims :latest, and a backfill of
+#      an older version cannot steal it, regardless of who started the run.
+#
+#   2. A published version is never rebuilt. npm forbids republishing a
+#      version, so `<version>` fully determines image contents and a second
+#      build could only produce a new digest for identical inputs. Pass
+#      `force` to override — the one case that costs us is refreshing
+#      base-image security patches under an existing tag.
 
 name: build-image
 
@@ -24,24 +29,20 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'xl1-cli version to bake in (XL1_CLI_VERSION build arg)'
-        required: true
+        description: 'xl1-cli version to build. Leave empty to build npm''s current latest.'
+        required: false
         type: string
       force:
         description: 'Rebuild and overwrite even if this version tag is already published'
         required: false
         type: boolean
         default: false
-  workflow_call:
-    inputs:
-      version:
-        required: true
-        type: string
-      force:
-        description: 'Rebuild and overwrite even if this version tag is already published'
-        required: false
-        type: boolean
-        default: false
+
+  # Nightly. Enable once the manual path has been exercised. Scheduled runs
+  # only ever fire on the default branch, and GitHub disables the schedule
+  # after 60 days with no repository activity.
+  # schedule:
+  #   - cron: '23 8 * * *' # 08:23 UTC daily (~00:23 PT)
 
 permissions:
   contents: read
@@ -56,11 +57,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate version and decide tags
-        id: tags
+      - name: Resolve version and decide tags
+        id: resolve
         env:
-          VERSION: ${{ inputs.version }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_FORCE: ${{ inputs.force }}
         run: |
+          # The `inputs` context does not exist for schedule events, so both
+          # inputs are normalised here and every later step reads these
+          # outputs instead. That keeps the step conditions event-agnostic.
+          FORCE="${INPUT_FORCE:-false}"
+
+          NPM_LATEST="$(npm view @xyo-network/xl1-cli dist-tags.latest 2>/dev/null || true)"
+          if [[ -z "${NPM_LATEST}" ]]; then
+            echo "::error::could not resolve the latest dist-tag of @xyo-network/xl1-cli" >&2
+            exit 1
+          fi
+
+          VERSION="${INPUT_VERSION:-${NPM_LATEST}}"
+          if [[ -z "${INPUT_VERSION}" ]]; then
+            echo "No version requested - building npm's latest: ${VERSION}"
+          fi
+
           if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
             echo "::error::'${VERSION}' is not a valid semver version" >&2
             exit 1
@@ -70,11 +88,7 @@ jobs:
             echo "::error::@xyo-network/xl1-cli@${VERSION} not found on npm" >&2
             exit 1
           fi
-          NPM_LATEST="$(npm view @xyo-network/xl1-cli dist-tags.latest 2>/dev/null || true)"
-          if [[ -z "${NPM_LATEST}" ]]; then
-            echo "::error::could not resolve the latest dist-tag of @xyo-network/xl1-cli" >&2
-            exit 1
-          fi
+
           TAGS="${IMAGE}:${VERSION}"
           IS_LATEST=false
           if [[ "${VERSION}" == "${NPM_LATEST}" ]]; then
@@ -84,8 +98,11 @@ jobs:
           else
             echo "${VERSION} is not npm's latest (${NPM_LATEST}) -> :latest untouched"
           fi
-          echo "is-latest=${IS_LATEST}" >> "${GITHUB_OUTPUT}"
+
           {
+            echo "version=${VERSION}"
+            echo "force=${FORCE}"
+            echo "is-latest=${IS_LATEST}"
             echo 'tags<<EOF'
             echo "${TAGS}"
             echo 'EOF'
@@ -105,7 +122,7 @@ jobs:
       - name: Check whether this version is already published
         id: published
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.resolve.outputs.version }}
         run: |
           if docker buildx imagetools inspect "${IMAGE}:${VERSION}" >/dev/null 2>&1; then
             echo "exists=true" >> "${GITHUB_OUTPUT}"
@@ -119,9 +136,9 @@ jobs:
       # skipped — but :latest still has to end up pointing at it. Repoint the
       # tag at the existing digest: no rebuild, nothing pulled.
       - name: Point :latest at the published version
-        if: ${{ steps.published.outputs.exists == 'true' && !inputs.force && steps.tags.outputs.is-latest == 'true' }}
+        if: ${{ steps.published.outputs.exists == 'true' && steps.resolve.outputs.force != 'true' && steps.resolve.outputs.is-latest == 'true' }}
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.resolve.outputs.version }}
         run: |
           WANT="$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --format '{{.Manifest.Digest}}')"
           HAVE="$(docker buildx imagetools inspect "${IMAGE}:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
@@ -133,39 +150,39 @@ jobs:
           fi
 
       - uses: pnpm/action-setup@v4
-        if: ${{ steps.published.outputs.exists != 'true' || inputs.force }}
+        if: ${{ steps.published.outputs.exists != 'true' || steps.resolve.outputs.force == 'true' }}
 
       - uses: actions/setup-node@v4
-        if: ${{ steps.published.outputs.exists != 'true' || inputs.force }}
+        if: ${{ steps.published.outputs.exists != 'true' || steps.resolve.outputs.force == 'true' }}
         with:
           node-version: 24.14.1
           cache: pnpm
 
       - name: Compile entrypoint
-        if: ${{ steps.published.outputs.exists != 'true' || inputs.force }}
+        if: ${{ steps.published.outputs.exists != 'true' || steps.resolve.outputs.force == 'true' }}
         run: |
           pnpm install --frozen-lockfile
           pnpm xy compile
 
       - uses: docker/build-push-action@v6
-        if: ${{ steps.published.outputs.exists != 'true' || inputs.force }}
+        if: ${{ steps.published.outputs.exists != 'true' || steps.resolve.outputs.force == 'true' }}
         with:
           context: .
           file: docker/Dockerfile
           push: true
           build-args: |
-            XL1_CLI_VERSION=${{ inputs.version }}
-          tags: ${{ steps.tags.outputs.tags }}
+            XL1_CLI_VERSION=${{ steps.resolve.outputs.version }}
+          tags: ${{ steps.resolve.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Summary
         if: ${{ success() }}
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.resolve.outputs.version }}
           EXISTS: ${{ steps.published.outputs.exists }}
-          FORCED: ${{ inputs.force }}
-          IS_LATEST: ${{ steps.tags.outputs.is-latest }}
+          FORCED: ${{ steps.resolve.outputs.force }}
+          IS_LATEST: ${{ steps.resolve.outputs.is-latest }}
         run: |
           if [[ "${EXISTS}" == "true" && "${FORCED}" != "true" ]]; then
             if [[ "${IS_LATEST}" == "true" ]]; then
