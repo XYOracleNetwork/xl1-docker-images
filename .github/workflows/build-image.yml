@@ -1,11 +1,37 @@
-# Build the XL1 multi-role Docker image for a specific xl1-cli version
-# and push it to GHCR, tagged with that version.
+# Build the XL1 multi-role Docker image and push it to GHCR.
 #
-# Run manually from the Actions tab ("Run workflow") or:
-#   gh workflow run build-image.yml -f version=5.0.3
+# One workflow, two ways in:
 #
-# Also callable from other workflows (see build-latest.yml, which is the
-# only place the :latest tag comes from).
+#   Manual, a specific version:  gh workflow run build-image.yml -f version=5.3.2
+#   Manual, whatever npm tags latest:  gh workflow run build-image.yml
+#   Nightly (cron):              same as the second form — no inputs at all
+#
+# Omitting `version` means "build npm's current latest dist-tag", so the
+# nightly run is just the no-argument manual run. Both paths go through the
+# same publish gate below; there is no second copy of that logic to drift.
+#
+# Two invariants, enforced here rather than by the caller:
+#
+#   1. :latest tracks npm's latest dist-tag. This workflow re-resolves the
+#      dist-tag and tags :latest iff the version being built IS it — so a
+#      manual build of the newest version claims :latest, and a backfill of
+#      an older version cannot steal it, regardless of who started the run.
+#
+#   2. A published version is never rebuilt, and there is no override. npm
+#      forbids republishing a version, so `<version>` fully determines image
+#      contents and a second build could only produce a new digest for
+#      identical inputs — an operator who pinned that tag and verified its
+#      digest would silently get different bits.
+#
+#      The working plan for a base-image CVE is to roll forward: the patch
+#      reaches operators in the image built for the next xl1-cli release,
+#      rather than by mutating a tag that is already in the wild. That is a
+#      tentative stance, not doctrine — see the commented-out `force` input
+#      for the shape the other answer would take.
+#
+#      If a tag ever does have to be rebuilt under the current design, delete
+#      that package version in GHCR first, so discarding the old artifact is
+#      a deliberate, auditable act.
 
 name: build-image
 
@@ -13,26 +39,39 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'xl1-cli version to bake in (XL1_CLI_VERSION build arg)'
-        required: true
-        type: string
-  workflow_call:
-    inputs:
-      version:
-        required: true
-        type: string
-      tag-latest:
-        description: 'Also move the :latest tag to this build'
+        description: 'xl1-cli version to build. Leave empty to build npm''s current latest.'
         required: false
-        type: boolean
-        default: false
+        type: string
+
+      # Deliberately not wired up — parked here as a hint, because the
+      # roll-forward stance above is tentative. If patching an existing tag
+      # in place ever becomes necessary, this is the shape it takes. Enabling
+      # it is not just uncommenting: the resolve step has to normalise it
+      # (`FORCE="${INPUT_FORCE:-false}"` plus a `force=` output, since the
+      # `inputs` context is absent on schedule runs), each of the four
+      # `exists != 'true'` conditions below needs
+      # `|| steps.resolve.outputs.force == 'true'`, and the :latest retag
+      # step needs `&& steps.resolve.outputs.force != 'true'` so a forced
+      # rebuild does not both rebuild and retag.
+      #
+      # force:
+      #   description: 'Rebuild and overwrite even if this version tag is already published'
+      #   required: false
+      #   type: boolean
+      #   default: false
+
+  # Nightly. Enable once the manual path has been exercised. Scheduled runs
+  # only ever fire on the default branch, and GitHub disables the schedule
+  # after 60 days with no repository activity.
+  # schedule:
+  #   - cron: '23 8 * * *' # 08:23 UTC daily (~00:23 PT)
 
 permissions:
   contents: read
   packages: write
 
 env:
-  IMAGE: ghcr.io/xyoraclenetwork/xl1-docker-images
+  IMAGE: ghcr.io/xyoraclenetwork/xl1
 
 jobs:
   build:
@@ -40,12 +79,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate version and compute tags
-        id: tags
+      - name: Resolve version and decide tags
+        id: resolve
         env:
-          VERSION: ${{ inputs.version }}
-          TAG_LATEST: ${{ inputs.tag-latest }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
+          # The `inputs` context does not exist for schedule events, so the
+          # version is normalised into an output here and every later step
+          # reads that. It keeps the step conditions event-agnostic.
+          NPM_LATEST="$(npm view @xyo-network/xl1-cli dist-tags.latest 2>/dev/null || true)"
+          if [[ -z "${NPM_LATEST}" ]]; then
+            echo "::error::could not resolve the latest dist-tag of @xyo-network/xl1-cli" >&2
+            exit 1
+          fi
+
+          VERSION="${INPUT_VERSION:-${NPM_LATEST}}"
+          if [[ -z "${INPUT_VERSION}" ]]; then
+            echo "No version requested - building npm's latest: ${VERSION}"
+          fi
+
           if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
             echo "::error::'${VERSION}' is not a valid semver version" >&2
             exit 1
@@ -55,27 +107,24 @@ jobs:
             echo "::error::@xyo-network/xl1-cli@${VERSION} not found on npm" >&2
             exit 1
           fi
+
           TAGS="${IMAGE}:${VERSION}"
-          if [[ "${TAG_LATEST}" == "true" ]]; then
+          IS_LATEST=false
+          if [[ "${VERSION}" == "${NPM_LATEST}" ]]; then
+            IS_LATEST=true
             TAGS+=$'\n'"${IMAGE}:latest"
+            echo "${VERSION} is npm's latest dist-tag -> will also tag :latest"
+          else
+            echo "${VERSION} is not npm's latest (${NPM_LATEST}) -> :latest untouched"
           fi
+
           {
+            echo "version=${VERSION}"
+            echo "is-latest=${IS_LATEST}"
             echo 'tags<<EOF'
             echo "${TAGS}"
             echo 'EOF'
           } >> "${GITHUB_OUTPUT}"
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24.14.1
-          cache: pnpm
-
-      - name: Compile entrypoint
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm xy compile
 
       - uses: docker/setup-buildx-action@v3
 
@@ -85,13 +134,83 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
+      # Idempotency gate. Must run after login: GHCR returns the same denial
+      # for "no such package" and "not authorized", so an unauthenticated
+      # probe cannot tell absent from forbidden.
+      - name: Check whether this version is already published
+        id: published
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          if docker buildx imagetools inspect "${IMAGE}:${VERSION}" >/dev/null 2>&1; then
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+            echo "${IMAGE}:${VERSION} is already published"
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+            echo "${IMAGE}:${VERSION} is not published yet"
+          fi
+
+      # The version is already built and it is npm's latest, so the build is
+      # skipped — but :latest still has to end up pointing at it. Repoint the
+      # tag at the existing digest: no rebuild, nothing pulled.
+      - name: Point :latest at the published version
+        if: ${{ steps.published.outputs.exists == 'true' && steps.resolve.outputs.is-latest == 'true' }}
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          WANT="$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --format '{{.Manifest.Digest}}')"
+          HAVE="$(docker buildx imagetools inspect "${IMAGE}:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          if [[ "${WANT}" == "${HAVE}" ]]; then
+            echo ":latest already points at ${VERSION} (${WANT}) - nothing to do"
+          else
+            docker buildx imagetools create --tag "${IMAGE}:latest" "${IMAGE}:${VERSION}"
+            echo "Moved :latest from ${HAVE:-<unset>} to ${VERSION} (${WANT})"
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: ${{ steps.published.outputs.exists != 'true' }}
+
+      - uses: actions/setup-node@v4
+        if: ${{ steps.published.outputs.exists != 'true' }}
+        with:
+          node-version: 24.14.1
+          cache: pnpm
+
+      - name: Compile entrypoint
+        if: ${{ steps.published.outputs.exists != 'true' }}
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm xy compile
+
       - uses: docker/build-push-action@v6
+        if: ${{ steps.published.outputs.exists != 'true' }}
         with:
           context: .
           file: docker/Dockerfile
           push: true
           build-args: |
-            XL1_CLI_VERSION=${{ inputs.version }}
-          tags: ${{ steps.tags.outputs.tags }}
+            XL1_CLI_VERSION=${{ steps.resolve.outputs.version }}
+          tags: ${{ steps.resolve.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Summary
+        if: ${{ success() }}
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+          EXISTS: ${{ steps.published.outputs.exists }}
+          IS_LATEST: ${{ steps.resolve.outputs.is-latest }}
+        run: |
+          if [[ "${EXISTS}" == "true" ]]; then
+            if [[ "${IS_LATEST}" == "true" ]]; then
+              echo "Skipped build of ${VERSION} (already published); :latest points at it." >> "${GITHUB_STEP_SUMMARY}"
+            else
+              echo "Skipped build of ${VERSION} (already published)." >> "${GITHUB_STEP_SUMMARY}"
+            fi
+          else
+            echo "Built and pushed:" >> "${GITHUB_STEP_SUMMARY}"
+            echo '```' >> "${GITHUB_STEP_SUMMARY}"
+            echo "${IMAGE}:${VERSION}" >> "${GITHUB_STEP_SUMMARY}"
+            [[ "${IS_LATEST}" == "true" ]] && echo "${IMAGE}:latest" >> "${GITHUB_STEP_SUMMARY}"
+            echo '```' >> "${GITHUB_STEP_SUMMARY}"
+          fi

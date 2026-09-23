@@ -77,7 +77,7 @@ When **`XL1_NETWORK` and `XL1_ROLE` are unset**, the entrypoint passes through t
 | | |
 |---|---|
 | **Registry (planned)** | `ghcr.io/xyoraclenetwork/xl1` |
-| **Tags** | `<semver>`, `<semver>-<gitsha>`, `latest` |
+| **Tags** | `<semver>` (immutable, never rebuilt), `latest` (tracks npm's latest dist-tag) |
 | **Entrypoint** | preset merger → `xl1 -c <generated> start <actors…>` |
 | **Passthrough** | `docker run … xl1:local start api` (no network/role env) |
 
