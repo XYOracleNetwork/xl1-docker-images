@@ -36,6 +36,15 @@ than using `@ariestools/vitest-config`, whose default include glob assumes a mon
 - `scripts/smoke-run.sh` verifies the image runs `xl1 --version` / `--help` via entrypoint passthrough.
 - Scripts must stay bash-3.2 safe (macOS): expand possibly-empty arrays as `${ARR[@]+"${ARR[@]}"}`.
 
+### GitHub Actions are pinned by commit SHA
+
+Every `uses:` in `.github/workflows/` is pinned to a commit SHA, with the release it
+corresponds to in a comment directly above. Do **not** replace these with `@v4`-style tags:
+a version tag is mutable, so anyone who can move it in the upstream repository can change
+what runs here, and this workflow pushes a **publicly pullable** image and holds
+`packages: write`. To bump one, resolve the new SHA (`gh api /repos/<owner>/<repo>/commits/<tag> --jq .sha`)
+and update the comment to match.
+
 ## Entrypoint contract
 
 `src/entrypoint.ts` is the image ENTRYPOINT:
