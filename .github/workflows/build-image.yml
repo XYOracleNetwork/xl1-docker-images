@@ -10,6 +10,10 @@
 # nightly run is just the no-argument manual run. Both paths go through the
 # same publish gate below; there is no second copy of that logic to drift.
 #
+# The image is published as a multi-platform manifest list covering
+# linux/amd64 and linux/arm64, so Apple Silicon and ARM servers can pull it
+# without --platform. arm64 is cross-built under QEMU on an amd64 runner.
+#
 # Two invariants, enforced here rather than by the caller:
 #
 #   1. :latest tracks npm's latest dist-tag. This workflow re-resolves the
@@ -181,6 +185,11 @@ jobs:
             echo "Moved :latest from ${HAVE:-<unset>} to ${VERSION} (${WANT})"
           fi
 
+      # Cross-building arm64 on an amd64 runner. Gated with the build steps:
+      # a skipped run has nothing to emulate.
+      - uses: docker/setup-qemu-action@v3
+        if: ${{ steps.published.outputs.exists != 'true' }}
+
       - uses: pnpm/action-setup@v4
         if: ${{ steps.published.outputs.exists != 'true' }}
 
@@ -202,6 +211,7 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           build-args: |
             XL1_CLI_VERSION=${{ steps.resolve.outputs.version }}
           tags: ${{ steps.resolve.outputs.tags }}
