@@ -27,7 +27,7 @@ export const XL1_DOCKER_REGISTRY = 'ghcr.io'
 
 /**
  * Image repository under GHCR.
- * Full reference example: `ghcr.io/xyoraclenetwork/xl1:5.3.2`
+ * Full reference example: `ghcr.io/xyoraclenetwork/xl1:5.6.1`
  */
 export const XL1_DOCKER_IMAGE_REPOSITORY = 'xyoraclenetwork/xl1'
 
@@ -46,7 +46,7 @@ export function xl1DockerImageRef(tag: string): string {
 
 /**
  * Build a release tag from package version and optional short Git hash.
- * Examples: `5.3.2`, `5.3.2-a1b2c3d`
+ * Examples: `5.6.1`, `5.6.1-a1b2c3d`
  */
 export function xl1DockerReleaseTag(version: string, gitSha?: string): string {
   if (gitSha === undefined || gitSha.length === 0) return version

@@ -109,7 +109,7 @@ docker run --rm --env-file sequence-producer.env xl1:local
 Pin a specific CLI release:
 
 ```bash
-XL1_CLI_VERSION=5.3.2 TAG=xl1:5.3.2 ./scripts/build-image.sh
+XL1_CLI_VERSION=5.6.1 TAG=xl1:5.6.1 ./scripts/build-image.sh
 ```
 
 ## Manual (non-preset) config

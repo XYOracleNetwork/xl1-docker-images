@@ -105,7 +105,7 @@
   },
   "engineStrict": true,
   "volta": {
-    "node": "24.14.1"
+    "node": "26.11.1"
   },
   "publishConfig": {
     "access": "public"

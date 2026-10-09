@@ -15,7 +15,7 @@ visibility. It has **no dependency on that monorepo**: the image installs the pu
 
 ## Toolchain
 
-pnpm + Node ≥ 24 (Volta-pinned to 24.14.1). All build/lint work goes through the `xy` CLI from
+pnpm + Node ≥ 24 (Volta-pinned to 26.11.1). All build/lint work goes through the `xy` CLI from
 `@ariestools/toolchain`, run from the repo root:
 
 - `pnpm xy build` — compile (tsup) + publint + deplint + lint
@@ -142,7 +142,7 @@ Two federated producer presets ship:
   `EvmChainViewer` and `StakeTotalsViewer` to `default-evm-rpc`; the 5.3 resolver will not
   auto-bind connection-typed providers.
 
-The image pin is xl1-cli 5.3.2.
+The image pin is xl1-cli 5.6.1 on `node:26.11.1-bookworm-slim`. That CLI's `@xyo-network/xl1-sdk` and `@ariestools/sdk` declare `node >= 26`.
 
 ## Style
 
