@@ -1,6 +1,6 @@
 {
   "name": "@xyo-network/xl1-docker-images",
-  "version": "5.2.1",
+  "version": "5.6.1",
   "description": "Docker images, Compose recipes, and config examples for running XL1 network nodes",
   "keywords": [
     "xyo",
