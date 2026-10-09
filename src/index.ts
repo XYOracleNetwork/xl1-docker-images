@@ -45,7 +45,7 @@ export function xl1DockerImageRef(tag: string): string {
 }
 
 /**
- * Build a release tag from package version and optional short git hash.
+ * Build a release tag from package version and optional short Git hash.
  * Examples: `5.3.2`, `5.3.2-a1b2c3d`
  */
 export function xl1DockerReleaseTag(version: string, gitSha?: string): string {

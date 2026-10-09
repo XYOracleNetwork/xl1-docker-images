@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 // Single-package repository: specs live at src/**/spec/**, not the monorepo
 // packages/*/src/**/spec/** layout assumed by @ariestools/vitest-config.
-export default defineConfig({
+const config = defineConfig({
   test: {
     environment: 'node',
     exclude: ['**/dist/**', '**/node_modules/**'],
@@ -11,3 +11,5 @@ export default defineConfig({
     watch: false,
   },
 })
+
+export default config

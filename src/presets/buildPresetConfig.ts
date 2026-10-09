@@ -119,17 +119,17 @@ function applyProducerRewardAddress(
     ? rawActors.map((entry: unknown) => entry)
     : []
   config.actors = actorList.map((entry: unknown) => {
-    if (!isPlainObject(entry) || entry.name !== 'producer') return entry
-    return { ...entry, rewardAddress }
+    return !isPlainObject(entry) || entry.name !== 'producer' ? entry : { ...entry, rewardAddress }
   })
 }
 
 function extractActorNames(config: Record<string, unknown>): string[] {
-  if (!Array.isArray(config.actors)) return []
-  return config.actors
-    .filter(isPlainObject)
-    .map(actor => actor.name)
-    .filter((name): name is string => typeof name === 'string' && name.length > 0)
+  return Array.isArray(config.actors)
+    ? config.actors
+        .filter(isPlainObject)
+        .map(actor => actor.name)
+        .filter((name): name is string => typeof name === 'string' && name.length > 0)
+    : []
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

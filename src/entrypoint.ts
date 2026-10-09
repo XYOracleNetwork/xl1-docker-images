@@ -88,7 +88,7 @@ async function runPresetMode(network: Xl1PresetNetwork, role: Xl1PresetRole): Pr
   FS.mkdirSync(PATH.dirname(outPath), { recursive: true })
   FS.writeFileSync(outPath, `${JSON.stringify(built.document, null, 2)}\n`, 'utf8')
 
-  // Extra CLI args after entrypoint (e.g. docker run … -- --dump-providers) are appended.
+  // Extra CLI args after entrypoint (e.g. Docker run … -- --dump-providers) are appended.
   await execXl1(['-c', outPath, 'start', ...built.actors, ...PASSTHROUGH])
 }
 
@@ -111,8 +111,7 @@ function firstEnv(...names: readonly string[]): string | undefined {
 }
 
 function nonEmpty(value: string | undefined): string | undefined {
-  if (value === undefined || value.length === 0) return undefined
-  return value
+  return value === undefined || value.length === 0 ? undefined : value
 }
 
 function isPresetNetwork(value: string): value is Xl1PresetNetwork {
@@ -174,8 +173,10 @@ function bindChildExit(child: ChildProcess, onSignalResolve: () => void): void {
   })
 }
 
-main().catch((err: unknown) => {
+try {
+  await main()
+} catch (err: unknown) {
   const message = err instanceof Error ? err.message : String(err)
   PROCESS.stderr.write(`[xl1-docker] ${message}\n`)
   PROCESS.exit(1)
-})
+}

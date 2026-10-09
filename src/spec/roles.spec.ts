@@ -33,7 +33,8 @@ describe('XL1 docker roles', () => {
 
   it('keeps unique default account paths', () => {
     const paths = XL1_DOCKER_ROLES.map(role => role.defaultAccountPath)
-    expect(new Set(paths).size).toBe(paths.length)
+    const uniquePaths = new Set(paths)
+    expect(uniquePaths.size).toBe(paths.length)
   })
 })
 
