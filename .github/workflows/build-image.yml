@@ -98,17 +98,29 @@ jobs:
       # v6.1.0
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
+      # Runs OUTSIDE the checkout. npm enforces this repo's
+      # `devEngines.packageManager` (pnpm) on any command whose working
+      # directory is inside the project, `npm view` included, and exits with
+      # EBADDEVENGINES. A registry query needs no project, so run it from
+      # runner.temp, where npm finds no package.json.
+      #
+      # npm's stderr is deliberately left visible: when this step swallowed it,
+      # the devEngines refusal showed up only as an empty version.
       - name: Resolve version and decide tags
         id: resolve
+        working-directory: ${{ runner.temp }}
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           # The `inputs` context does not exist for schedule events, so the
           # version is normalised into an output here and every later step
           # reads that. It keeps the step conditions event-agnostic.
-          NPM_LATEST="$(npm view @xyo-network/xl1-cli dist-tags.latest 2>/dev/null || true)"
+          if ! NPM_LATEST="$(npm view @xyo-network/xl1-cli dist-tags.latest)"; then
+            echo "::error::npm view failed for @xyo-network/xl1-cli (see npm's output above)" >&2
+            exit 1
+          fi
           if [[ -z "${NPM_LATEST}" ]]; then
-            echo "::error::could not resolve the latest dist-tag of @xyo-network/xl1-cli" >&2
+            echo "::error::npm returned no latest dist-tag for @xyo-network/xl1-cli" >&2
             exit 1
           fi
 
@@ -121,9 +133,9 @@ jobs:
             echo "::error::'${VERSION}' is not a valid semver version" >&2
             exit 1
           fi
-          RESOLVED="$(npm view "@xyo-network/xl1-cli@${VERSION}" version 2>/dev/null || true)"
-          if [[ "${RESOLVED}" != "${VERSION}" ]]; then
-            echo "::error::@xyo-network/xl1-cli@${VERSION} not found on npm" >&2
+          if ! RESOLVED="$(npm view "@xyo-network/xl1-cli@${VERSION}" version)" \
+            || [[ "${RESOLVED}" != "${VERSION}" ]]; then
+            echo "::error::@xyo-network/xl1-cli@${VERSION} not found on npm (see npm's output above)" >&2
             exit 1
           fi
 
